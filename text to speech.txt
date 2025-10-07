@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Advanced Text → Speech — Single-file HTML App</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa7b2;--accent:#60a5fa;--glass: rgba(255,255,255,0.03)}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial; margin:0;background:linear-gradient(180deg,#071020 0%, #0b1b2a 100%);color:#e6eef6;padding:28px}
+    .app{max-width:980px;margin:0 auto}
+    header{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+    header h1{font-size:20px;margin:0}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:16px}
+    .card{background:var(--card);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    textarea{width:100%;height:320px;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:var(--glass);color:inherit;resize:vertical}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+    select,input[type=range],input[type=number],input[type=text]{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+    .controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    button{background:transparent;border:1px solid rgba(255,255,255,0.06);padding:10px 12px;border-radius:10px;color:inherit;cursor:pointer}
+    button.primary{background:linear-gradient(90deg,var(--accent),#3b82f6);border:0}
+    .row{display:flex;gap:8px;align-items:center}
+    .muted{color:var(--muted);font-size:13px}
+    small.hint{display:block;color:var(--muted);margin-top:8px}
+    .voice-meta{font-size:12px;color:var(--muted);margin-top:8px}
+    .preset-list{display:flex;gap:6px;flex-wrap:wrap}
+    .preset{background:#071426;border:1px solid rgba(255,255,255,0.02);padding:6px 8px;border-radius:8px;font-size:13px}
+    footer{margin-top:12px;color:var(--muted);font-size:13px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='36' viewBox='0 0 24 24'%3E%3Cpath fill='%2360a5fa' d='M6 9v6h4l5 3V6L10 9H6z'/%3E%3C/svg%3E" alt="icon"/>
+      <h1>Voice Flow</h1>
+    </header>
+
+    <div class="grid">
+      <section class="card">
+        <label for="text">Text to speak</label>
+        <textarea id="text" placeholder="Type or paste text here...">Hello! This is an advanced text to speech demo. Change voice, rate, pitch and volume, then press Speak.</textarea>
+
+        <div class="controls" style="margin-top:12px">
+          <button id="speak" class="primary">▶ Speak</button>
+          <button id="pause">⏸ Pause</button>
+          <button id="resume">⏵ Resume</button>
+          <button id="cancel">✖ Stop</button>
+          <button id="copy">Copy</button>
+          <button id="paste">Paste</button>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:14px">
+          <div style="flex:1">
+            <label for="voice">Voice / Language</label>
+            <select id="voice"></select>
+            <div class="voice-meta" id="voiceMeta"></div>
+          </div>
+          <div style="width:160px">
+            <label for="langFilter">Filter (lang)</label>
+            <input id="langFilter" placeholder="e.g. en-US, hi-IN" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:12px">
+          <div style="flex:1">
+            <label for="rate">Rate: <span id="rateVal">1</span></label>
+            <input type="range" id="rate" min="0.1" max="3" step="0.1" value="1" />
+          </div>
+          <div style="width:160px">
+            <label for="pitch">Pitch: <span id="pitchVal">1</span></label>
+            <input type="range" id="pitch" min="0" max="2" step="0.1" value="1" />
+          </div>
+          <div style="width:120px">
+            <label for="volume">Volume: <span id="volumeVal">1</span></label>
+            <input type="range" id="volume" min="0" max="1" step="0.05" value="1" />
+          </div>
+        </div>
+
+        <div style="display:flex;gap:12px;margin-top:12px;align-items:center">
+          <label style="margin:0"><input type="checkbox" id="ssml" /> SSML-like punctuation handling</label>
+          <label style="margin:0"><input type="checkbox" id="autoHighlight" checked /> Highlight spoken words</label>
+          <label style="margin:0"><input type="checkbox" id="preserveWhitespace" /> Preserve newlines as pauses</label>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center">
+          <button id="savePreset">Save preset</button>
+          <select id="presets"></select>
+          <button id="deletePreset">Delete</button>
+        </div>
+
+        <small class="hint">Notes: This app uses the browser's Speech Synthesis (Web Speech API). Voice availability depends on your browser and OS. Downloading synthesized speech to a file is not supported natively in most browsers — see footer for alternatives.</small>
+
+        <div style="margin-top:12px">
+          <label>Samples</label>
+          <div class="preset-list">
+            <button class="preset" data-sample="Short sample text.">Short</button>
+            <button class="preset" data-sample="Hello, welcome to this text to speech demo. Try changing voices and speeds.">Greeting</button>
+            <button class="preset" data-sample="The quick brown fox jumps over the lazy dog.">Pangram</button>
+            <button class="preset" data-sample="1234567890. Testing numbers and punctuation.">Numbers</button>
+            <button class="preset" data-sample="ये एक हिंदी वाक्य है।">Hindi</button>
+          </div>
+        </div>
+
+      </section>
+
+      <aside class="card">
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div>
+            <label>Playback status</label>
+            <div id="status" class="muted">Idle</div>
+          </div>
+
+          <div>
+            <label>Character count</label>
+            <div id="charCount" class="muted">0</div>
+          </div>
+
+          <div>
+            <label>Pronunciation / boundary events</label>
+            <div id="events" class="muted" style="height:160px;overflow:auto;padding:8px;background:rgba(255,255,255,0.015);border-radius:8px"></div>
+          </div>
+
+          <div>
+            <label>Troubleshooting & export</label>
+            <div class="muted" style="font-size:13px">
+              • If voices list is empty, try a different browser (Chrome, Edge, Safari have different support).<br>
+              • To export speech as an audio file: use a server-side TTS API (Google, Azure, Amazon, or Open-source engines) or an extension that captures system audio. The browser's SpeechSynthesis does not provide raw audio in most stable releases.
+            </div>
+          </div>
+
+          <div>
+            <label>Keyboard shortcuts</label>
+            <div class="muted">Ctrl/Cmd+Enter: Speak • Space: Pause/Resume • Esc: Stop</div>
+          </div>
+
+          <div>
+            <label>Accessibility</label>
+            <div class="muted">Aria attributes and large controls included — works with screen readers that support Web Speech.</div>
+          </div>
+
+        </div>
+      </aside>
+    </div>
+
+    <footer class="muted">Built with the Web Speech API (SpeechSynthesis). For saving audio, consider using a cloud TTS provider that returns audio files (MP3/WAV) which can then be downloaded.</footer>
+  </div>
+
+  <script>
+  // Advanced single-file TTS app
+  (function(){
+    const textEl = document.getElementById('text');
+    const speakBtn = document.getElementById('speak');
+    const pauseBtn = document.getElementById('pause');
+    const resumeBtn = document.getElementById('resume');
+    const cancelBtn = document.getElementById('cancel');
+    const voiceSelect = document.getElementById('voice');
+    const rate = document.getElementById('rate');
+    const pitch = document.getElementById('pitch');
+    const volume = document.getElementById('volume');
+    const rateVal = document.getElementById('rateVal');
+    const pitchVal = document.getElementById('pitchVal');
+    const volumeVal = document.getElementById('volumeVal');
+    const status = document.getElementById('status');
+    const charCount = document.getElementById('charCount');
+    const eventsBox = document.getElementById('events');
+    const langFilter = document.getElementById('langFilter');
+    const autoHighlight = document.getElementById('autoHighlight');
+    const ssmlToggle = document.getElementById('ssml');
+    const preserveWhitespace = document.getElementById('preserveWhitespace');
+    const copyBtn = document.getElementById('copy');
+    const pasteBtn = document.getElementById('paste');
+    const samples = document.querySelectorAll('.preset[data-sample]');
+    const savePresetBtn = document.getElementById('savePreset');
+    const presetsSelect = document.getElementById('presets');
+    const deletePresetBtn = document.getElementById('deletePreset');
+
+    let voices = [];
+    let utterance = null;
+
+    function updateCharCount(){ charCount.textContent = textEl.value.length + ' characters'; }
+    textEl.addEventListener('input', updateCharCount);
+    updateCharCount();
+
+    function loadVoices(){
+      voices = speechSynthesis.getVoices().slice();
+      voiceSelect.innerHTML = '';
+      const filter = (langFilter.value || '').trim().toLowerCase();
+      const grouped = {};
+      voices.forEach(v=>{
+        if(filter && !v.lang.toLowerCase().includes(filter) && !v.name.toLowerCase().includes(filter)) return;
+        const key = v.lang || 'unknown';
+        if(!grouped[key]) grouped[key]=[];
+        grouped[key].push(v);
+      });
+      // sort languages
+      Object.keys(grouped).sort().forEach(lang=>{
+        const optGroup = document.createElement('optgroup');
+        optGroup.label = lang;
+        grouped[lang].forEach(v=>{
+          const opt = document.createElement('option');
+          opt.value = v.name;
+          opt.textContent = v.name + ' — ' + v.lang + (v.default? ' (default)':'');
+          // store meta
+          opt.dataset.voiceUri = v.voiceURI || '';
+          opt.dataset.lang = v.lang || '';
+          optGroup.appendChild(opt);
+        });
+        voiceSelect.appendChild(optGroup);
+      });
+      if(!voiceSelect.options.length){
+        const opt = document.createElement('option'); opt.textContent='(no voices available)'; voiceSelect.appendChild(opt);
+      }
+    }
+
+    // initial load + event
+    loadVoices();
+    if(typeof speechSynthesis !== 'undefined'){
+      speechSynthesis.onvoiceschanged = () => { loadVoices(); };
+    }
+
+    // UI bindings
+    rate.addEventListener('input',()=>rateVal.textContent = rate.value);
+    pitch.addEventListener('input',()=>pitchVal.textContent = pitch.value);
+    volume.addEventListener('input',()=>volumeVal.textContent = volume.value);
+
+    langFilter.addEventListener('input',()=> loadVoices());
+
+    function logEvent(msg){
+      const when = new Date().toLocaleTimeString();
+      eventsBox.innerHTML = `<div style="margin-bottom:6px"><strong>${when}</strong> — ${msg}</div>` + eventsBox.innerHTML;
+    }
+
+    function highlightWord(charIndex, charLength){
+      if(!autoHighlight.checked) return;
+      const t = textEl.value;
+      // create selection-like highlight by replacing textarea with temp markup? Simpler: set selection range
+      try{ textEl.focus(); textEl.setSelectionRange(charIndex, charIndex + charLength); }catch(e){}
+    }
+
+    function speak(){
+      if(!('speechSynthesis' in window)){
+        alert('Sorry — your browser does not support the Web Speech API (SpeechSynthesis). Try Chrome, Edge or Safari.');
+        return;
+      }
+      const text = textEl.value.trim();
+      if(!text){ alert('Enter some text to speak.'); return; }
+
+      // Cancel any existing utterance
+      speechSynthesis.cancel();
+      utterance = new SpeechSynthesisUtterance();
+
+      // prose: optionally treat newlines as pauses
+      if(preserveWhitespace.checked){
+        // break on two newlines into longer pause segments
+        const parts = text.split(/\n{2,}/).map(p=>p.replace(/\n/g,' '));
+        utterance.text = parts.join('\n\n');
+      } else {
+        utterance.text = text;
+      }
+
+      // basic SSML-like handling: allow <break time="500ms"/> style tags and remove them for browsers
+      if(ssmlToggle.checked){
+        // convert <break time="XXXms"/> to small plain-text pause markers (commas) — browser doesn't support full SSML
+        utterance.text = utterance.text.replace(/<break\s+time=\"?(\d+)ms\"?\s*\/>/gi, function(_,m){
+          const ms = parseInt(m,10) || 250; return ' '.repeat(1) + '...';
+        });
+      }
+
+      // voice selection
+      const selected = voiceSelect.value;
+      if(selected && voices.length){
+        const v = voices.find(x=>x.name === selected) || voices.find(x=>x.name === selected.split(' — ')[0]);
+        if(v) utterance.voice = v;
+      }
+
+      utterance.rate = parseFloat(rate.value) || 1;
+      utterance.pitch = parseFloat(pitch.value) || 1;
+      utterance.volume = parseFloat(volume.value) || 1;
+
+      utterance.onstart = ()=>{ status.textContent = 'Speaking'; logEvent('started'); };
+      utterance.onend = ()=>{ status.textContent = 'Finished'; logEvent('finished'); textEl.setSelectionRange(0,0); };
+      utterance.onerror = (e)=>{ status.textContent = 'Error: ' + (e.error||'(unknown)'); logEvent('error '+(e.error||'')); };
+      utterance.onpause = ()=>{ status.textContent = 'Paused'; logEvent('paused'); };
+      utterance.onresume = ()=>{ status.textContent = 'Resumed'; logEvent('resumed'); };
+
+      // boundary event — word / sentence highlight
+      utterance.onboundary = (ev)=>{
+        if(ev.name === 'word'){
+          // ev.charIndex and ev.charLength are supported in some browsers
+          highlightWord(ev.charIndex || 0, ev.charLength || 0);
+        }
+        logEvent(`boundary: ${ev.name} at ${ev.charIndex || 0}`);
+      };
+
+      // speak
+      speechSynthesis.speak(utterance);
+    }
+
+    // control buttons
+    speakBtn.addEventListener('click', speak);
+    pauseBtn.addEventListener('click', ()=>{ if(speechSynthesis.speaking) speechSynthesis.pause(); });
+    resumeBtn.addEventListener('click', ()=>{ if(speechSynthesis.paused) speechSynthesis.resume(); });
+    cancelBtn.addEventListener('click', ()=>{ speechSynthesis.cancel(); status.textContent='Stopped'; logEvent('stopped'); });
+
+    // keyboard shortcuts
+    window.addEventListener('keydown', (e)=>{
+      if((e.ctrlKey || e.metaKey) && e.key === 'Enter'){ e.preventDefault(); speak(); }
+      if(e.key === ' ' && document.activeElement !== textEl){ e.preventDefault(); if(speechSynthesis.speaking && !speechSynthesis.paused) speechSynthesis.pause(); else if(speechSynthesis.paused) speechSynthesis.resume(); }
+      if(e.key === 'Escape'){ speechSynthesis.cancel(); }
+    });
+
+    // copy/paste
+    copyBtn.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(textEl.value); alert('Copied'); }catch(e){ alert('Copy failed: '+e); } });
+    pasteBtn.addEventListener('click', async ()=>{ try{ const txt = await navigator.clipboard.readText(); textEl.value += txt; updateCharCount(); }catch(e){ alert('Paste failed: '+e); } });
+
+    // samples
+    samples.forEach(b=>b.addEventListener('click', ()=>{ textEl.value = b.dataset.sample; updateCharCount(); }));
+
+    // presets localStorage
+    function loadPresets(){
+      presetsSelect.innerHTML = '';
+      const data = JSON.parse(localStorage.getItem('tts_presets')||'{}');
+      Object.keys(data).forEach(name=>{
+        const opt = document.createElement('option'); opt.value=name; opt.textContent=name; presetsSelect.appendChild(opt);
+      });
+    }
+    loadPresets();
+
+    savePresetBtn.addEventListener('click', ()=>{
+      const name = prompt('Preset name'); if(!name) return;
+      const data = JSON.parse(localStorage.getItem('tts_presets')||'{}');
+      data[name] = {text:textEl.value, rate:rate.value, pitch:pitch.value, volume:volume.value, voice:voiceSelect.value, ssml:ssmlToggle.checked, preserveWhitespace:preserveWhitespace.checked};
+      localStorage.setItem('tts_presets', JSON.stringify(data));
+      loadPresets();
+    });
+
+    presetsSelect.addEventListener('change', ()=>{
+      const name = presetsSelect.value; if(!name) return;
+      const data = JSON.parse(localStorage.getItem('tts_presets')||'{}');
+      const p = data[name]; if(!p) return;
+      textEl.value = p.text || textEl.value; rate.value = p.rate||rate.value; pitch.value = p.pitch||pitch.value; volume.value = p.volume||volume.value;
+      ssmlToggle.checked = !!p.ssml; preserveWhitespace.checked = !!p.preserveWhitespace;
+      // set voice if present
+      if(p.voice){ try{ voiceSelect.value = p.voice; }catch(e){} }
+      updateCharCount(); rateVal.textContent=rate.value; pitchVal.textContent=pitch.value; volumeVal.textContent=volume.value;
+    });
+
+    deletePresetBtn.addEventListener('click', ()=>{
+      const name = presetsSelect.value; if(!name) return alert('Select a preset first');
+      const ok = confirm('Delete preset "'+name+'"?'); if(!ok) return;
+      const data = JSON.parse(localStorage.getItem('tts_presets')||'{}'); delete data[name]; localStorage.setItem('tts_presets', JSON.stringify(data)); loadPresets();
+    });
+
+    // voice meta display
+    voiceSelect.addEventListener('change', ()=>{
+      const sel = voiceSelect.selectedOptions[0];
+      if(sel){ document.getElementById('voiceMeta').textContent = `Voice: ${sel.textContent} — URI: ${sel.dataset.voiceUri || '(unknown)'}`;} else { document.getElementById('voiceMeta').textContent=''; }
+    });
+
+    // show available on load if voices already present
+    setTimeout(()=>{ loadPresets(); loadVoices(); },300);
+
+    // Extra: expose a tiny API for calling speak programmatically
+    window.TTS = { speak, cancel: ()=>speechSynthesis.cancel(), pause: ()=>speechSynthesis.pause(), resume: ()=>speechSynthesis.resume() };
+
+  })();
+  </script>
+</body>
+</html>
